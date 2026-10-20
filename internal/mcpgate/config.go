@@ -1,0 +1,95 @@
+// Copyright 2026 High ArchyTech Solutions
+// SPDX-License-Identifier: Apache-2.0
+
+// Package mcpgate is an egress gate for an AI agent's tools. It sits
+// between an MCP host (Claude Desktop, Claude Code, an IDE) and the MCP
+// tool server the agent would otherwise talk to directly, and forwards a
+// tools/call only after Archytan Lite has authorized it, the receipt has
+// been fully verified, and the single-use capability has been redeemed.
+//
+// What it is: the only path from the agent to the tool server, provided
+// the host is configured to launch the gate instead of the server. What it
+// is not: an actuator guard. The tool server itself knows nothing about
+// capabilities, so anything that reaches the server by another route is
+// not governed by this gate. A redeemed capability records that the call
+// was authorized, not that the tool then succeeded.
+package mcpgate
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"sort"
+	"strings"
+)
+
+// ToolMapping binds one MCP tool to the Lite action that governs it.
+type ToolMapping struct {
+	// Action is the policy.json action name, e.g. "invoice.delete".
+	Action string `json:"action"`
+	// ResourceType is recorded on the receipt, e.g. "invoice".
+	ResourceType string `json:"resource_type"`
+	// ResourceIDArg names the tool argument whose string value is the
+	// resource id sent to the gate, e.g. "invoice_id".
+	ResourceIDArg string `json:"resource_id_arg"`
+}
+
+// Config is the gate's mcp-gate.json.
+type Config struct {
+	Version int `json:"version"`
+	// AgentUID is the actor uid sent with every authorization. The role is
+	// never sent: it comes from the caller credential the gate holds.
+	AgentUID string                 `json:"agent_uid"`
+	Tools    map[string]ToolMapping `json:"tools"`
+}
+
+// LoadConfig reads and strictly validates a config file. Anything unknown,
+// missing, or ambiguous is an error: the gate refuses to start rather than
+// guess which tools it is supposed to govern.
+func LoadConfig(path string) (*Config, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read config: %w", err)
+	}
+	return ParseConfig(raw)
+}
+
+// ParseConfig validates config bytes; see LoadConfig.
+func ParseConfig(raw []byte) (*Config, error) {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.DisallowUnknownFields()
+	var cfg Config
+	if err := dec.Decode(&cfg); err != nil {
+		return nil, fmt.Errorf("parse config: %w", err)
+	}
+	if err := dec.Decode(new(json.RawMessage)); !errors.Is(err, io.EOF) {
+		return nil, errors.New("parse config: trailing data after the JSON object")
+	}
+	if cfg.Version != 1 {
+		return nil, fmt.Errorf("config: unsupported version %d (want 1)", cfg.Version)
+	}
+	if strings.TrimSpace(cfg.AgentUID) == "" {
+		return nil, errors.New("config: agent_uid is required")
+	}
+	if len(cfg.Tools) == 0 {
+		return nil, errors.New("config: tools is empty, so every call would be refused; map at least one tool")
+	}
+	names := make([]string, 0, len(cfg.Tools))
+	for name := range cfg.Tools {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		m := cfg.Tools[name]
+		if strings.TrimSpace(name) == "" {
+			return nil, errors.New("config: a tool has an empty name")
+		}
+		if m.Action == "" || m.ResourceType == "" || m.ResourceIDArg == "" {
+			return nil, fmt.Errorf("config: tool %q needs action, resource_type and resource_id_arg", name)
+		}
+	}
+	return &cfg, nil
+}
