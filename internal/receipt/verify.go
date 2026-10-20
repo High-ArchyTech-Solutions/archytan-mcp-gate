@@ -9,7 +9,7 @@ import (
 	"encoding/hex"
 	"errors"
 
-	acrypto "github.com/high-archytech-solutions/archytan-mcp-gate/internal/crypto"
+	acrypto "github.com/high-archytech-solutions/archytan-mcp-gate/v2/internal/crypto"
 )
 
 // Errors returned by VerifyFor, distinguished so a caller can log precisely

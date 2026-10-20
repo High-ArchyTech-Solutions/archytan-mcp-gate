@@ -56,7 +56,7 @@ sha256sum -c SHA256SUMS --ignore-missing
 Or build it yourself with Go:
 
 ```sh
-go install github.com/high-archytech-solutions/archytan-mcp-gate/cmd/archytan-mcp-gate@latest
+go install github.com/high-archytech-solutions/archytan-mcp-gate/v2/cmd/archytan-mcp-gate@latest
 ```
 
 ## Configure

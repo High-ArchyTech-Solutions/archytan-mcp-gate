@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	acrypto "github.com/high-archytech-solutions/archytan-mcp-gate/internal/crypto"
+	acrypto "github.com/high-archytech-solutions/archytan-mcp-gate/v2/internal/crypto"
 )
 
 // vectorKeySeed is a fixed, published test seed. Ed25519 signing is

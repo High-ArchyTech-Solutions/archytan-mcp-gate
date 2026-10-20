@@ -13,7 +13,7 @@ import (
 	"io"
 	"sync"
 
-	"github.com/high-archytech-solutions/archytan-mcp-gate/internal/tracectx"
+	"github.com/high-archytech-solutions/archytan-mcp-gate/v2/internal/tracectx"
 )
 
 // Methods the host may call that are forwarded without being gated (after

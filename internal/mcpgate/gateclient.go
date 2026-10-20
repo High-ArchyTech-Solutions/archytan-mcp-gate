@@ -19,8 +19,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/high-archytech-solutions/archytan-mcp-gate/internal/receipt"
-	"github.com/high-archytech-solutions/archytan-mcp-gate/internal/tracectx"
+	"github.com/high-archytech-solutions/archytan-mcp-gate/v2/internal/receipt"
+	"github.com/high-archytech-solutions/archytan-mcp-gate/v2/internal/tracectx"
 )
 
 // Authorizer is what the relay needs from Archytan Lite: a verified

@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/high-archytech-solutions/archytan-mcp-gate/internal/receipt"
+	"github.com/high-archytech-solutions/archytan-mcp-gate/v2/internal/receipt"
 )
 
 var testKey = ed25519.NewKeyFromSeed(bytes.Repeat([]byte{9}, ed25519.SeedSize))

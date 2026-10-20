@@ -9,7 +9,7 @@ import (
 	"os"
 	"syscall"
 
-	"github.com/high-archytech-solutions/archytan-mcp-gate/internal/proctree"
+	"github.com/high-archytech-solutions/archytan-mcp-gate/v2/internal/proctree"
 )
 
 // jobHandle is deliberately never closed. It closes when this process

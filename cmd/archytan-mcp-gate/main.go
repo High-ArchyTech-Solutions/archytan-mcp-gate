@@ -35,7 +35,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/high-archytech-solutions/archytan-mcp-gate/internal/mcpgate"
+	"github.com/high-archytech-solutions/archytan-mcp-gate/v2/internal/mcpgate"
 )
 
 const shutdownGrace = 2 * time.Second

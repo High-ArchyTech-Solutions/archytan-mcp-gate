@@ -11,7 +11,7 @@ import (
 
 	"crypto"
 	"errors"
-	acrypto "github.com/high-archytech-solutions/archytan-mcp-gate/internal/crypto"
+	acrypto "github.com/high-archytech-solutions/archytan-mcp-gate/v2/internal/crypto"
 	"io"
 )
 
