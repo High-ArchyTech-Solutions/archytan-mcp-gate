@@ -5,11 +5,19 @@ published on
 [archytan-lite-community](https://github.com/High-ArchyTech-Solutions/archytan-lite-community/releases).
 This repository holds the same code from 2.6.0 on.
 
-## 2.6.1 (2026-10-20)
+## 2.6.2 (2026-10-20)
 
 - The MCP gate's source is published here under the Apache License 2.0,
   and releases are built and signed from it. No change in behavior from
   2.6.0.
+- The module path is `github.com/high-archytech-solutions/archytan-mcp-gate/v2`,
+  as Go requires for version 2 tags, so `go install` can fetch a release.
+
+## 2.6.1 (not released)
+
+- Tagged and built, then withdrawn before release: its module path lacked
+  the `/v2` suffix, so Go tools couldn't fetch it by version. The tag stays
+  as it was; 2.6.2 is the same code with the corrected path.
 
 ## 2.6.0 (2026-10-16)
 
