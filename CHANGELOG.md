@@ -5,7 +5,7 @@ published on
 [archytan-lite-community](https://github.com/High-ArchyTech-Solutions/archytan-lite-community/releases).
 This repository holds the same code from 2.6.0 on.
 
-## Unreleased
+## 2.6.1 (2026-10-20)
 
 - The MCP gate's source is published here under the Apache License 2.0,
   and releases are built and signed from it. No change in behavior from
