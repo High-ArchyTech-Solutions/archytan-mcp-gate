@@ -5,6 +5,15 @@ published on
 [archytan-lite-community](https://github.com/High-ArchyTech-Solutions/archytan-lite-community/releases).
 This repository holds the same code from 2.6.0 on.
 
+## 2.6.3 (2026-10-20)
+
+- Built with Go 1.26.10, which fixes CVE-2026-111943: certificate checks
+  refuse chains through eight intermediates from one certificate
+  authority. The MCP gate checks the Archytan Lite gate service's
+  certificate with Go's verifier, and the agent's credential travels on
+  that connection, so a build on an earlier Go could accept a chain
+  through them. Nothing else changes.
+
 ## 2.6.2 (2026-10-20)
 
 - The MCP gate's source is published here under the Apache License 2.0,
