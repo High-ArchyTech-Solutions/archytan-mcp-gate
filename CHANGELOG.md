@@ -5,8 +5,13 @@ published on
 [archytan-lite-community](https://github.com/High-ArchyTech-Solutions/archytan-lite-community/releases).
 This repository holds the same code from 2.6.0 on.
 
-## 2.7.0 (unreleased)
+## 2.7.0 (2026-10-21)
 
+- Releases attach `archytan-mcp-gate.mcpb`, an MCP bundle for hosts that
+  install them, and are listed in the MCP Registry as
+  `io.github.High-ArchyTech-Solutions/archytan-mcp-gate`. The bundle is
+  covered by the signed `SHA256SUMS` and rebuilds to the same bytes from
+  the tag, like the binaries.
 - The tool server can be named in `mcp-gate.json`'s `server` (`command`
   and `args`) instead of after `--`, for hosts and bundles that only pass
   a config file. Naming it in both places, or in neither, stops the MCP

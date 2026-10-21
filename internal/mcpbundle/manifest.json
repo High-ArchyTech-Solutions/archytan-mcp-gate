@@ -1,0 +1,70 @@
+{
+  "manifest_version": "0.3",
+  "name": "archytan-mcp-gate",
+  "display_name": "Archytan Lite MCP gate",
+  "version": "2.7.0",
+  "description": "Puts an MCP tool server behind Archytan Lite: every tool call is authorized, its signed receipt verified and a single-use capability spent before the server sees it.",
+  "long_description": "The MCP gate launches the tool server named in your mcp-gate.json and becomes the only path between the agent and its tools. For each tool call it asks an Archytan Lite gate service to authorize the action, verifies the signed receipt, redeems the single-use capability, and only then forwards the call. A call the policy doesn't allow comes back to the agent as a tool error, and tools you haven't mapped are hidden and refused. It needs a running Archytan Lite gate service with capabilities on, and a credential for the agent made with its callergen.",
+  "author": {
+    "name": "High ArchyTech Solutions",
+    "url": "https://high-archy.tech"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/High-ArchyTech-Solutions/archytan-mcp-gate"
+  },
+  "homepage": "https://high-archy.tech/lite",
+  "documentation": "https://github.com/High-ArchyTech-Solutions/archytan-mcp-gate#readme",
+  "support": "https://github.com/High-ArchyTech-Solutions/archytan-mcp-gate/issues",
+  "license": "Apache-2.0",
+  "keywords": ["mcp", "authorization", "agent-security", "archytan"],
+  "server": {
+    "type": "binary",
+    "entry_point": "server/launch.sh",
+    "mcp_config": {
+      "command": "/bin/sh",
+      "args": ["${__dirname}/server/launch.sh", "--config", "${user_config.config_path}"],
+      "env": {
+        "ARCHYTAN_MCP_GATE_URL": "${user_config.gate_url}",
+        "ARCHYTAN_MCP_GATE_CALLER_TOKEN_PATH": "${user_config.caller_token_path}",
+        "ARCHYTAN_MCP_GATE_PUBLIC_KEY_HEX": "${user_config.public_key_hex}"
+      },
+      "platform_overrides": {
+        "win32": {
+          "command": "${__dirname}/server/archytan-mcp-gate-windows-amd64",
+          "args": ["--config", "${user_config.config_path}"]
+        }
+      }
+    }
+  },
+  "tools_generated": true,
+  "user_config": {
+    "config_path": {
+      "type": "file",
+      "title": "MCP gate config (mcp-gate.json)",
+      "description": "Maps each tool to a policy action and names the tool server to launch in its \"server\" field.",
+      "required": true
+    },
+    "gate_url": {
+      "type": "string",
+      "title": "Archytan Lite gate URL",
+      "description": "Base URL of the gate service, for example https://gate.internal:8421. Plain http works only to this machine.",
+      "required": true
+    },
+    "caller_token_path": {
+      "type": "file",
+      "title": "Agent caller token",
+      "description": "The file holding the agent's caller token, made with the gate service's callergen.",
+      "required": true
+    },
+    "public_key_hex": {
+      "type": "string",
+      "title": "Gate public key",
+      "description": "The gate service's Ed25519 receipt-signing public key in hex, as keygen printed it.",
+      "required": true
+    }
+  },
+  "compatibility": {
+    "platforms": ["darwin", "linux", "win32"]
+  }
+}

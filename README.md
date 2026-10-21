@@ -59,6 +59,20 @@ Or build it yourself with Go:
 go install github.com/high-archytech-solutions/archytan-mcp-gate/v2/cmd/archytan-mcp-gate@latest
 ```
 
+Each release also attaches `archytan-mcp-gate.mcpb`, an
+[MCP bundle](https://github.com/modelcontextprotocol/mcpb) for hosts that
+install them, and lists it in the
+[MCP Registry](https://registry.modelcontextprotocol.io) as
+`io.github.High-ArchyTech-Solutions/archytan-mcp-gate`. The host asks for
+four things: an `mcp-gate.json` that names the tool server in its
+`server` field (see [Configure](#configure)), the gate service's URL, the
+agent's token file and the service's public key. The bundle carries the
+builds for macOS and Linux on amd64 and arm64, and for Windows on amd64,
+which Windows on Arm runs under emulation. `SHA256SUMS` covers it too.
+The macOS builds aren't notarized by Apple, so macOS may refuse to run
+one that arrived through a browser until you clear its quarantine
+(`xattr -d com.apple.quarantine <file>`).
+
 ## Configure
 
 Map each tool you want the agent to have to a policy action in

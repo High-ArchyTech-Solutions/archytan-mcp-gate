@@ -1,0 +1,21 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.High-ArchyTech-Solutions/archytan-mcp-gate",
+  "title": "Archytan Lite MCP gate",
+  "description": "Puts an MCP tool server behind Archytan Lite: each tool call is authorized and spent before it runs.",
+  "repository": {
+    "url": "https://github.com/High-ArchyTech-Solutions/archytan-mcp-gate",
+    "source": "github"
+  },
+  "websiteUrl": "https://high-archy.tech/lite",
+  "version": "2.7.0",
+  "packages": [
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/High-ArchyTech-Solutions/archytan-mcp-gate/releases/download/v2.7.0/archytan-mcp-gate.mcpb",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

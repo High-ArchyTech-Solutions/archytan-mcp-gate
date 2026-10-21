@@ -1,0 +1,92 @@
+# Lists a release in the MCP Registry once a person has published it. It
+# can't run earlier: the registry checks that the bundle's URL is publicly
+# downloadable, and a draft's isn't. Before the bundle's hash goes into
+# server.json, the bundle is checked against the release's signed
+# SHA256SUMS, and the public URL has to serve those same bytes.
+#
+# The registry is reached with GitHub's OIDC token, so no secret is stored:
+# it grants io.github.High-ArchyTech-Solutions/*, and only this workflow,
+# run for a published release or by hand, asks for one.
+name: MCP Registry
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published release tag to list, e.g. v2.7.0
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # GitHub OIDC login to the MCP Registry.
+      id-token: write
+    env:
+      TAG: ${{ github.event.release.tag_name || github.event.inputs.tag }}
+      # mcp-publisher, pinned with its published checksum.
+      PUBLISHER_VERSION: 1.8.1
+      PUBLISHER_SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: server.json names this release
+        run: |
+          v="${TAG#v}"
+          [ "$(jq -r .version server.json)" = "$v" ]
+          [ "$(jq -r '.packages[0].identifier' server.json)" = "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/archytan-mcp-gate.mcpb" ]
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
+
+      - name: Check the bundle against the signed checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir "$RUNNER_TEMP/release" && cd "$RUNNER_TEMP/release"
+          gh release download "$TAG" -R "$GITHUB_REPOSITORY" \
+            -p SHA256SUMS -p SHA256SUMS.cosign.bundle -p archytan-mcp-gate.mcpb
+          cosign verify-blob SHA256SUMS --bundle SHA256SUMS.cosign.bundle \
+            --certificate-identity "https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yml@refs/tags/${TAG}" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com
+          grep -q ' archytan-mcp-gate\.mcpb$' SHA256SUMS
+          sha256sum -c SHA256SUMS --ignore-missing
+          curl -fsSL -o public.mcpb "$(jq -r '.packages[0].identifier' "$GITHUB_WORKSPACE/server.json")"
+          cmp public.mcpb archytan-mcp-gate.mcpb
+          sha="$(sha256sum archytan-mcp-gate.mcpb | cut -d' ' -f1)"
+          cd "$GITHUB_WORKSPACE"
+          jq --arg sha "$sha" '.packages[0].fileSha256 = $sha' server.json > "$RUNNER_TEMP/server.json"
+          cat "$RUNNER_TEMP/server.json"
+
+      - name: Install mcp-publisher
+        run: |
+          cd "$RUNNER_TEMP"
+          curl -fsSL -o mcp-publisher.tar.gz \
+            "https://github.com/modelcontextprotocol/registry/releases/download/v${PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz"
+          echo "${PUBLISHER_SHA256}  mcp-publisher.tar.gz" | sha256sum -c
+          tar xzf mcp-publisher.tar.gz mcp-publisher
+
+      - name: Publish
+        run: |
+          "$RUNNER_TEMP/mcp-publisher" validate "$RUNNER_TEMP/server.json"
+          "$RUNNER_TEMP/mcp-publisher" login github-oidc
+          "$RUNNER_TEMP/mcp-publisher" publish "$RUNNER_TEMP/server.json"
+
+      - name: The registry lists this version
+        run: |
+          name="$(jq -r .name server.json)"
+          url="https://registry.modelcontextprotocol.io/v0.1/servers/$(jq -rn --arg n "$name" '$n|@uri')/versions/${TAG#v}"
+          for i in 1 2 3 4 5 6; do
+            if curl -fsS "$url" -o listed.json; then break; fi
+            sleep 10
+          done
+          jq . listed.json
+          [ "$(jq -r '.server.packages[0].fileSha256' listed.json)" = "$(jq -r '.packages[0].fileSha256' "$RUNNER_TEMP/server.json")" ]

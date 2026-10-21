@@ -40,6 +40,29 @@ jobs:
       - name: govulncheck
         run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
+      # The MCP bundle a release attaches, from the same cross-builds: the
+      # same bytes twice, a manifest the MCPB tools accept, and a launcher
+      # that starts the gate after a plain unzip.
+      - name: MCP bundle
+        run: |
+          mkdir dist
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64; do
+            os="${target%/*}"; arch="${target#*/}"; ext=""
+            if [ "$os" = windows ]; then ext=.exe; fi
+            CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags "-s -w" \
+              -o "dist/archytan-mcp-gate-${os}-${arch}${ext}" ./cmd/archytan-mcp-gate
+          done
+          v="$(jq -r .version internal/mcpbundle/manifest.json)"
+          go run ./internal/mcpbundle/build -version "$v" -dist dist
+          go run ./internal/mcpbundle/build -version "$v" -dist dist -out "$RUNNER_TEMP/again.mcpb"
+          cmp dist/archytan-mcp-gate.mcpb "$RUNNER_TEMP/again.mcpb"
+          npx --yes @anthropic-ai/mcpb@2.1.2 validate internal/mcpbundle/manifest.json
+          mkdir "$RUNNER_TEMP/unpacked" && unzip -q dist/archytan-mcp-gate.mcpb -d "$RUNNER_TEMP/unpacked"
+          status=0
+          /bin/sh "$RUNNER_TEMP/unpacked/server/launch.sh" 2> "$RUNNER_TEMP/launch.err" || status=$?
+          cat "$RUNNER_TEMP/launch.err"
+          [ "$status" -eq 2 ] && grep -q "usage: archytan-mcp-gate" "$RUNNER_TEMP/launch.err"
+
   other-platforms:
     strategy:
       fail-fast: false
