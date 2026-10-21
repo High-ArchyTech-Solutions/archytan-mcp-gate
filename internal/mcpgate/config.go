@@ -37,13 +37,69 @@ type ToolMapping struct {
 	ResourceIDArg string `json:"resource_id_arg"`
 }
 
+// ServerCommand is the tool server the gate launches, when mcp-gate.json
+// names it instead of the command line. Command runs exactly as written
+// (looked up on PATH when it has no directory), followed by Args, and
+// inherits the gate's environment, the same as the "--" form.
+type ServerCommand struct {
+	Command string   `json:"command"`
+	Args    []string `json:"args"`
+}
+
+// UnmarshalJSON decodes the server object strictly. encoding/json would
+// skip a field it doesn't know and read a null argument as "", so a typo
+// or a null would quietly change the command that runs.
+func (s *ServerCommand) UnmarshalJSON(raw []byte) error {
+	var v struct {
+		Command *string   `json:"command"`
+		Args    []*string `json:"args"`
+	}
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&v); err != nil {
+		return fmt.Errorf("server: %w", err)
+	}
+	if v.Command == nil {
+		return errors.New("server: command is required")
+	}
+	args := make([]string, len(v.Args))
+	for i, a := range v.Args {
+		if a == nil {
+			return fmt.Errorf("server: args[%d] is null", i)
+		}
+		args[i] = *a
+	}
+	s.Command, s.Args = *v.Command, args
+	return nil
+}
+
 // Config is the gate's mcp-gate.json.
 type Config struct {
 	Version int `json:"version"`
 	// AgentUID is the actor uid sent with every authorization. The role is
 	// never sent: it comes from the caller credential the gate holds.
-	AgentUID string                 `json:"agent_uid"`
-	Tools    map[string]ToolMapping `json:"tools"`
+	AgentUID string `json:"agent_uid"`
+	// Server, when set, is the tool server to launch. It is named here or
+	// after "--" on the command line, never both; see ServerArgv.
+	Server *ServerCommand         `json:"server,omitempty"`
+	Tools  map[string]ToolMapping `json:"tools"`
+}
+
+// ServerArgv returns the tool server's command line: the config's server,
+// or cli, the arguments after "--". Both at once is refused rather than
+// resolved by picking one, since they are two answers to which program
+// the gate runs; neither is refused too.
+func (c *Config) ServerArgv(cli []string) ([]string, error) {
+	switch {
+	case c.Server != nil && len(cli) > 0:
+		return nil, errors.New("the tool server is named twice, in the config's server and after --; name it in one place")
+	case c.Server != nil:
+		return append([]string{c.Server.Command}, c.Server.Args...), nil
+	case len(cli) > 0:
+		return cli, nil
+	default:
+		return nil, errors.New("no tool server: name it after -- or in the config's server")
+	}
 }
 
 // LoadConfig reads and strictly validates a config file. Anything unknown,
@@ -68,11 +124,37 @@ func ParseConfig(raw []byte) (*Config, error) {
 	if err := dec.Decode(new(json.RawMessage)); !errors.Is(err, io.EOF) {
 		return nil, errors.New("parse config: trailing data after the JSON object")
 	}
+	// The config is held to the rule host messages are: text that decodes
+	// two ways, or an object whose keys repeat or differ only in case, is
+	// refused rather than resolved. A second "server" would otherwise
+	// quietly decide which program the gate runs.
+	if err := checkText(raw); err != nil {
+		return nil, fmt.Errorf("parse config: %w", err)
+	}
+	if err := checkKeysEverywhere(raw, "config"); err != nil {
+		return nil, fmt.Errorf("parse config: %w", err)
+	}
 	if cfg.Version != 1 {
 		return nil, fmt.Errorf("config: unsupported version %d (want 1)", cfg.Version)
 	}
 	if strings.TrimSpace(cfg.AgentUID) == "" {
 		return nil, errors.New("config: agent_uid is required")
+	}
+	if s := cfg.Server; s != nil {
+		if strings.TrimSpace(s.Command) == "" {
+			return nil, errors.New("config: server.command is empty")
+		}
+		if strings.TrimSpace(s.Command) != s.Command {
+			return nil, fmt.Errorf("config: server.command %q starts or ends with space; write the command exactly", s.Command)
+		}
+		for i, part := range append([]string{s.Command}, s.Args...) {
+			if strings.ContainsRune(part, 0) {
+				if i == 0 {
+					return nil, errors.New("config: server.command contains a NUL character")
+				}
+				return nil, fmt.Errorf("config: server.args[%d] contains a NUL character", i-1)
+			}
+		}
 	}
 	if len(cfg.Tools) == 0 {
 		return nil, errors.New("config: tools is empty, so every call would be refused; map at least one tool")

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -153,6 +154,45 @@ func objectFields(raw []byte) (map[string]json.RawMessage, error) {
 		return nil, err
 	}
 	return fields, nil
+}
+
+// checkKeysEverywhere refuses JSON with an object, at any depth, whose keys
+// repeat or differ only in case. where names the value in the error. Host
+// messages are checked only at the levels the gate reads; the gate's own
+// config is read whole, so it is checked whole.
+func checkKeysEverywhere(raw []byte, where string) error {
+	trimmed := bytes.TrimLeft(raw, " \t\r\n")
+	if len(trimmed) == 0 {
+		return nil
+	}
+	switch trimmed[0] {
+	case '{':
+		fields, err := objectFields(trimmed)
+		if err != nil {
+			return fmt.Errorf("%s: %w", where, err)
+		}
+		keys := make([]string, 0, len(fields))
+		for k := range fields {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			if err := checkKeysEverywhere(fields[k], where+"."+k); err != nil {
+				return err
+			}
+		}
+	case '[':
+		var items []json.RawMessage
+		if err := json.Unmarshal(trimmed, &items); err != nil {
+			return fmt.Errorf("%s: %w", where, err)
+		}
+		for i, item := range items {
+			if err := checkKeysEverywhere(item, fmt.Sprintf("%s[%d]", where, i)); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // checkUnambiguous refuses a host message with ambiguous text anywhere, or

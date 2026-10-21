@@ -102,6 +102,32 @@ and a project's `.mcp.json`:
 | `ARCHYTAN_MCP_GATE_CALLER_TOKEN_PATH` | File holding the agent's caller token. |
 | `ARCHYTAN_MCP_GATE_PUBLIC_KEY_HEX` | The service's Ed25519 receipt-signing public key, in hex. Receipts signed by any other key are refused. |
 
+The tool server can be named in `mcp-gate.json` instead of after `--`,
+which suits a host or bundle that only lets you pass a config file:
+
+```json
+{
+  "version": 1,
+  "agent_uid": "agent-invoices",
+  "server": { "command": "node", "args": ["/opt/invoice-server/index.js"] },
+  "tools": {
+    "read_invoice": { "action": "invoice.read", "resource_type": "invoice", "resource_id_arg": "invoice_id" }
+  }
+}
+```
+
+The host's entry is then `"args": ["--config", "/etc/archytan/mcp-gate.json"]`.
+The command runs exactly as written and inherits the MCP gate's
+environment, the same as after `--`. Name the server in one place: with a
+`server` in the config and a command after `--`, the MCP gate refuses to
+start rather than pick one.
+
+`mcp-gate.json` is read as strictly as host messages are. An unknown
+field, a key that repeats or differs only in case at any depth, and text
+that isn't valid UTF-8 or escapes an unpaired surrogate all stop the MCP
+gate at startup, so a second `server` can't quietly decide which program
+runs.
+
 ## What it does on the wire
 
 - **Tools the policy doesn't cover are hidden and refused.** `tools/list`

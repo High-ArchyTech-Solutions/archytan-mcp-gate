@@ -5,6 +5,18 @@ published on
 [archytan-lite-community](https://github.com/High-ArchyTech-Solutions/archytan-lite-community/releases).
 This repository holds the same code from 2.6.0 on.
 
+## 2.7.0 (unreleased)
+
+- The tool server can be named in `mcp-gate.json`'s `server` (`command`
+  and `args`) instead of after `--`, for hosts and bundles that only pass
+  a config file. Naming it in both places, or in neither, stops the MCP
+  gate at startup.
+- `mcp-gate.json` is held to the rule host messages are: an object whose
+  keys repeat or differ only in case, at any depth, and text that isn't
+  valid UTF-8 or escapes an unpaired surrogate are refused at startup.
+  Before, the last of two repeated keys won without a word. A config that
+  loaded before and has neither still loads.
+
 ## 2.6.3 (2026-10-20)
 
 - Built with Go 1.26.10, which fixes CVE-2026-111943: certificate checks

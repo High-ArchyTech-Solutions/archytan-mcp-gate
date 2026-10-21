@@ -4,6 +4,10 @@
 // Command archytan-mcp-gate is an egress gate for an AI agent's tools.
 //
 //	archytan-mcp-gate --config mcp-gate.json -- <tool server command> [args...]
+//	archytan-mcp-gate --config mcp-gate.json    (the config names the server)
+//
+// The tool server is named after "--" or in mcp-gate.json's "server", in
+// exactly one of the two places.
 //
 // Configure your MCP host to launch this instead of the tool server. The
 // gate launches the server itself, forwards everything the protocol needs,
@@ -40,6 +44,8 @@ import (
 
 const shutdownGrace = 2 * time.Second
 
+const usage = "usage: archytan-mcp-gate --config mcp-gate.json [-- <tool server command> [args...]]"
+
 func main() {
 	os.Exit(run())
 }
@@ -53,9 +59,8 @@ func run() int {
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		return 2
 	}
-	serverArgv := fs.Args()
-	if *configPath == "" || len(serverArgv) == 0 {
-		logf("usage: archytan-mcp-gate --config mcp-gate.json -- <tool server command> [args...]")
+	if *configPath == "" {
+		logf(usage)
 		return 2
 	}
 
@@ -63,6 +68,12 @@ func run() int {
 	if err != nil {
 		logf("%v", err)
 		return 1
+	}
+	serverArgv, err := cfg.ServerArgv(fs.Args())
+	if err != nil {
+		logf("%v", err)
+		logf(usage)
+		return 2
 	}
 	client, err := gateClientFromEnv()
 	if err != nil {

@@ -159,8 +159,15 @@ type session struct {
 
 func (e *env) startGate(t *testing.T, gateURL string, extraEnv ...string) *session {
 	t.Helper()
+	return e.startGateArgs(t, gateURL, []string{"--config", filepath.Join(e.dir, "mcp-gate.json"), "--", e.serverBin}, extraEnv...)
+}
+
+// startGateArgs starts the gate with the given command line instead of the
+// usual "--config mcp-gate.json -- fakeserver".
+func (e *env) startGateArgs(t *testing.T, gateURL string, args []string, extraEnv ...string) *session {
+	t.Helper()
 	s := &session{t: t, lines: make(chan string, 64), pidFile: filepath.Join(t.TempDir(), "server.pid")}
-	s.cmd = exec.Command(e.gateBin, "--config", filepath.Join(e.dir, "mcp-gate.json"), "--", e.serverBin)
+	s.cmd = exec.Command(e.gateBin, args...)
 	s.cmd.Env = append(os.Environ(),
 		"ARCHYTAN_MCP_GATE_URL="+gateURL,
 		"ARCHYTAN_MCP_GATE_CALLER_TOKEN_PATH="+e.tokenPath,
