@@ -201,7 +201,10 @@ runs.
 - It protects what the agent reaches through it. Make it the only path:
   list the tool server only through the MCP gate's entry, and give the
   server's own credentials to that entry alone. An agent with a
-  general-purpose shell can still start the server by hand.
+  general-purpose shell can still start the server by hand, and Claude
+  Code and Claude Desktop give Claude a shell and file tools of their
+  own. For them, [locked-workspace](locked-workspace/) makes a workspace
+  where the MCP gate's tools are the only way to the paths you protect.
 - The policy decides which actions the agent may take on which resources.
   Within an allowed action, the server's own arguments and configuration set
   its reach.

@@ -1,7 +1,8 @@
 # Format, vet, the full suite and the race detector on Linux, where Docker
 # runs the published Archytan Lite gate service image for the end-to-end
 # tests (required to run there, so they can't pass by skipping); unit tests
-# on Windows and macOS; govulncheck. Actions are pinned to full commit SHAs.
+# on Windows and macOS; govulncheck; the locked-workspace kit's tests on all
+# three. Actions are pinned to full commit SHAs.
 name: CI
 
 on:
@@ -39,6 +40,11 @@ jobs:
 
       - name: govulncheck
         run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+      # The locked-workspace kit: the hook's decisions and the workspace
+      # new-workspace.mjs writes.
+      - name: Locked workspace kit
+        run: node --test locked-workspace/test/kit.test.mjs
 
       # The MCP bundle a release attaches, from the same cross-builds: the
       # same bytes twice, a manifest the MCPB tools accept, and a launcher
@@ -79,3 +85,6 @@ jobs:
       # skip here and say why. They run on Linux above.
       - name: Test
         run: go test ./... -count=1
+
+      - name: Locked workspace kit
+        run: node --test locked-workspace/test/kit.test.mjs

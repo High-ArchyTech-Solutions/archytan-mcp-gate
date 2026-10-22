@@ -5,6 +5,15 @@ published on
 [archytan-lite-community](https://github.com/High-ArchyTech-Solutions/archytan-lite-community/releases).
 This repository holds the same code from 2.6.0 on.
 
+## Unreleased
+
+- `locked-workspace/` makes a Claude Code workspace, for Claude Code and
+  Claude Desktop's local sessions, where the MCP gate's tools are the only
+  way to the paths you protect: deny rules remove Claude's shell and file
+  tools, and a PreToolUse hook that fails closed refuses every tool it
+  doesn't name, including the ones Claude Desktop adds to a session. No
+  change to the MCP gate itself.
+
 ## 2.7.0 (2026-10-21)
 
 - Releases attach `archytan-mcp-gate.mcpb`, an MCP bundle for hosts that
