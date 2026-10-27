@@ -36,7 +36,8 @@ the agent's credential, and the agent only ever speaks MCP.
 ## Requirements
 
 - An Archytan Lite gate service with capabilities on
-  (`ARCHYTAN_LITE_CAPABILITIES=on`). The tests run against version 2.6.0.
+  (`ARCHYTAN_LITE_CAPABILITIES=on`). The tests run against version 2.7.0,
+  the first whose policy can scope a role to named resources.
 - A credential-bound caller for the agent, made with the service's
   `callergen`. The MCP gate never sends a role; the agent's role is whatever
   its credential holds.
@@ -144,6 +145,62 @@ that isn't valid UTF-8 or escapes an unpaired surrogate all stop the MCP
 gate at startup, so a second `server` can't quietly decide which program
 runs.
 
+### A resource named by several arguments
+
+Some tool servers name the resource a call acts on with more than one
+argument. GitHub's MCP server takes `owner` and `repo` separately, and its
+write tools add a `branch`. List them in `resource_id_args` instead of
+`resource_id_arg`, and the MCP gate joins their values with `/` into the
+resource id it sends:
+
+```json
+"get_file_contents": { "action": "repo.read", "resource_type": "repo", "resource_id_args": ["owner", "repo"] },
+"push_files": { "action": "repo.push", "resource_type": "repo_branch", "resource_id_args": ["owner", "repo"], "resource_id_path_arg": "branch" }
+```
+
+A `push_files` call with owner `acme`, repo `web-shop` and branch
+`feature/login` is authorized as `acme/web-shop/feature/login`. With
+Archytan Lite 2.7.0's grants, the policy can then scope the agent's role:
+
+```json
+{ "action": "repo.read", "grants": [{ "roles": ["repo_agent"], "resource_ids": ["acme/web-*"] }] },
+{ "action": "repo.push", "grants": [{ "roles": ["repo_agent"], "resource_ids": ["acme/web-*/feature/**"] }] }
+```
+
+The agent can read the `acme/web-*` repositories and push to their
+`feature/` branches. A push to `main`, or to another owner's repository, is
+refused.
+
+- Each `resource_id_args` value must be a single name. A value containing
+  `/` or `\` is refused, because joined with the others it would name a
+  different resource: owner `a/b` with repo `c` reads the same as owner `a`
+  with repo `b/c`, and only the MCP gate knows which argument a segment came
+  from.
+- `resource_id_path_arg` is joined last and may span several segments, like
+  a branch name. There's at most one, since two values with separators in
+  them could be split more than one way.
+- Every listed argument must be there as a non-empty string. A missing one
+  is refused, never left out of the id: a tool that fills in a default, such
+  as the default branch, would act on a resource the id doesn't name.
+  Numbers and other types are refused too.
+- The joined id is then Archytan Lite's to judge. Under a rule scoped by
+  resource it refuses `..`, empty segments and characters outside its
+  grammar before any grant is matched, so `feature/../main` doesn't reach
+  `main`.
+- Write patterns in the tool's own casing. Lite compares exact bytes and a
+  grant only allows, so a variant such as `ACME/web-shop` is refused.
+
+Scope each tool at the level its id actually names. An argument left out of
+the id doesn't narrow anything: `push_files` takes a `files` array, so scope
+it by repository and branch, never by file path, and `get_file_contents`
+takes an optional `ref` and a `sha` that overrides it, so scope reads by
+repository. Branch scoping covers only the tools that take a branch; merging
+a pull request into `main` is `merge_pull_request`, which names a pull
+request number, so give it an action of its own.
+
+An MCP gate older than 2.8.0 refuses to start with a config that uses
+`resource_id_args`, rather than ignore it.
+
 ## What it does on the wire
 
 - **Tools the policy doesn't cover are hidden and refused.** `tools/list`
@@ -209,7 +266,7 @@ runs.
   where the MCP gate's tools are the only way to the paths you protect.
 - The policy decides which actions the agent may take on which resources.
   Within an allowed action, the server's own arguments and configuration set
-  its reach.
+  its reach, including any argument the resource id doesn't name.
 - It governs tools. Resources, prompts and completions don't pass.
 
 ## Security

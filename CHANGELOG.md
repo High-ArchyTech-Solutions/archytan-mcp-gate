@@ -7,6 +7,17 @@ This repository holds the same code from 2.6.0 on.
 
 ## Unreleased
 
+- A tool's resource can be named by several arguments: `resource_id_args`
+  joins their values with `/`, for servers such as GitHub's that take
+  `owner` and `repo` separately, and `resource_id_path_arg` adds one more,
+  joined last, that may span segments, like a branch. With Archytan Lite
+  2.7.0's grants, a policy can then scope a role to `acme/web-*`, or to
+  `acme/web-*/feature/**` for pushes. A `resource_id_args` value containing
+  `/` or `\` is refused, since joined with the others it would name a
+  different resource, and a listed argument that's missing is refused
+  rather than left out of the id. `resource_id_arg` works as before. An
+  MCP gate older than this one refuses a config that uses the new fields.
+- The end-to-end tests run against Archytan Lite 2.7.0.
 - `locked-workspace/` makes a Claude Code workspace, for Claude Code and
   Claude Desktop's local sessions, where the MCP gate's tools are the only
   way to the paths you protect: deny rules remove Claude's shell and file

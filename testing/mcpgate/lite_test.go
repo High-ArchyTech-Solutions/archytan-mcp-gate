@@ -25,7 +25,10 @@ import (
 //     ARCHYTAN_LITE_IMAGE, by default the one pinned below.
 //
 // With neither available, the tests skip and say why.
-const defaultLiteImage = "ghcr.io/high-archytech-solutions/archytan-lite:2.6.0@sha256:4e91942f8323d9e594a8bb76d6c72aea776882be61b7aff28276c7ece6a98a76"
+//
+// 2.7.0 is the first release whose policy can scope a role to named
+// resources, which the resource_id_args tests need.
+const defaultLiteImage = "ghcr.io/high-archytech-solutions/archytan-lite:2.7.0@sha256:f33cc09b815250e98da52fa65356cee7128652f48b034be5d5436f41a6f4ded4"
 
 // liteService is one running gate service.
 type liteService interface {
@@ -154,6 +157,32 @@ func startLite(t *testing.T, dir, addr string) liteService {
 		c.kill()
 	})
 	return c
+}
+
+// verifyChain runs the service's own --verify-chain over the database in
+// dir, trusting only pubHex, and fails the test unless the chain verifies.
+// Stop the service first, so the check reads a database nothing is writing.
+func verifyChain(t *testing.T, dir, pubHex string) string {
+	t.Helper()
+	var cmd *exec.Cmd
+	if lite.bin != "" {
+		cmd = exec.Command(lite.bin, "--verify-chain")
+		cmd.Env = append(os.Environ(),
+			"ARCHYTAN_LITE_DB_PATH="+filepath.Join(dir, "archytan.db"),
+			"ARCHYTAN_LITE_TRUSTED_PUBLIC_KEYS_HEX="+pubHex)
+	} else {
+		args := append([]string{"run", "--rm"}, dockerUser()...)
+		args = append(args, "--mount", "type=bind,source="+dir+",target=/cfg",
+			"-e", "ARCHYTAN_LITE_DB_PATH=/cfg/archytan.db",
+			"-e", "ARCHYTAN_LITE_TRUSTED_PUBLIC_KEYS_HEX="+pubHex,
+			lite.image, "--verify-chain")
+		cmd = exec.Command("docker", args...)
+	}
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("the receipt chain did not verify: %v\n%s", err, out)
+	}
+	return string(out)
 }
 
 type localLite struct{ cmd *exec.Cmd }

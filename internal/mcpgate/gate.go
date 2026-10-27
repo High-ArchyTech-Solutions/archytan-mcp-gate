@@ -417,10 +417,9 @@ func (g *Gate) handleCall(c *call) {
 		g.refuse(c, fmt.Sprintf("tool %q is not permitted through this gate", c.name))
 		return
 	}
-	rawID, ok := c.args[mapping.ResourceIDArg]
-	var resourceID string
-	if !ok || json.Unmarshal(rawID, &resourceID) != nil || resourceID == "" {
-		g.refuse(c, fmt.Sprintf("tool %q needs a non-empty string argument %q to identify the resource", c.name, mapping.ResourceIDArg))
+	resourceID, err := mapping.resourceID(c.args)
+	if err != nil {
+		g.refuse(c, fmt.Sprintf("tool %q %v", c.name, err))
 		return
 	}
 

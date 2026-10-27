@@ -102,6 +102,20 @@ func write(t *testing.T, path, content string) {
 
 func setup(t *testing.T) *env {
 	t.Helper()
+	return setupWith(t, "billing_agent", `{"version":1,"actions":[
+		{"action":"invoice.delete","allowed_roles":["billing_agent"]},
+		{"action":"invoice.read","allowed_roles":["billing_agent"]},
+		{"action":"tenant.delete","allowed_roles":["admin"]}]}`,
+		`{"version":1,"agent_uid":"agent-invoices","tools":{
+		"delete_invoice":{"action":"invoice.delete","resource_type":"invoice","resource_id_arg":"invoice_id"},
+		"read_invoice":{"action":"invoice.read","resource_type":"invoice","resource_id_arg":"invoice_id"},
+		"delete_tenant":{"action":"tenant.delete","resource_type":"tenant","resource_id_arg":"tenant_id"}}}`)
+}
+
+// setupWith starts the gate service with one caller, agent-invoices, holding
+// role, and writes policy and the MCP gate's config for the session.
+func setupWith(t *testing.T, role, policy, gateConfig string) *env {
+	t.Helper()
 	if skipReason != "" {
 		// CI sets this, so the tests can't pass by not running.
 		if os.Getenv("ARCHYTAN_MCP_GATE_E2E_REQUIRED") == "1" {
@@ -119,15 +133,9 @@ func setup(t *testing.T) *env {
 	write(t, e.tokenPath, token+"\n")
 	digest := sha256.Sum256([]byte(token))
 	write(t, filepath.Join(e.dir, "callers.json"), fmt.Sprintf(
-		`{"version":1,"callers":[{"caller_id":"agent-invoices","role":"billing_agent","token_sha256":%q}]}`, hex.EncodeToString(digest[:])))
-	write(t, filepath.Join(e.dir, "policy.json"), `{"version":1,"actions":[
-		{"action":"invoice.delete","allowed_roles":["billing_agent"]},
-		{"action":"invoice.read","allowed_roles":["billing_agent"]},
-		{"action":"tenant.delete","allowed_roles":["admin"]}]}`)
-	write(t, filepath.Join(e.dir, "mcp-gate.json"), `{"version":1,"agent_uid":"agent-invoices","tools":{
-		"delete_invoice":{"action":"invoice.delete","resource_type":"invoice","resource_id_arg":"invoice_id"},
-		"read_invoice":{"action":"invoice.read","resource_type":"invoice","resource_id_arg":"invoice_id"},
-		"delete_tenant":{"action":"tenant.delete","resource_type":"tenant","resource_id_arg":"tenant_id"}}}`)
+		`{"version":1,"callers":[{"caller_id":"agent-invoices","role":%q,"token_sha256":%q}]}`, role, hex.EncodeToString(digest[:])))
+	write(t, filepath.Join(e.dir, "policy.json"), policy)
+	write(t, filepath.Join(e.dir, "mcp-gate.json"), gateConfig)
 	e.callLog = filepath.Join(e.dir, "calls.log")
 
 	addr := freeAddr(t)

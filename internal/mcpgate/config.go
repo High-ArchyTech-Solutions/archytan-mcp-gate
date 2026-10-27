@@ -34,7 +34,16 @@ type ToolMapping struct {
 	ResourceType string `json:"resource_type"`
 	// ResourceIDArg names the tool argument whose string value is the
 	// resource id sent to the gate, e.g. "invoice_id".
-	ResourceIDArg string `json:"resource_id_arg"`
+	ResourceIDArg string `json:"resource_id_arg,omitempty"`
+	// ResourceIDArgs, used instead of ResourceIDArg, names the arguments
+	// whose values are joined with "/" into the resource id, for a tool
+	// that names its resource with more than one, e.g. ["owner", "repo"].
+	// Each value must be a single name; see resourceID.
+	ResourceIDArgs []string `json:"resource_id_args,omitempty"`
+	// ResourcePathArg, only with ResourceIDArgs, names one more argument
+	// joined last, whose value may be a path of several segments, e.g.
+	// "branch" for "feature/login".
+	ResourcePathArg string `json:"resource_id_path_arg,omitempty"`
 }
 
 // ServerCommand is the tool server the gate launches, when mcp-gate.json
@@ -169,9 +178,44 @@ func ParseConfig(raw []byte) (*Config, error) {
 		if strings.TrimSpace(name) == "" {
 			return nil, errors.New("config: a tool has an empty name")
 		}
-		if m.Action == "" || m.ResourceType == "" || m.ResourceIDArg == "" {
-			return nil, fmt.Errorf("config: tool %q needs action, resource_type and resource_id_arg", name)
+		if m.Action == "" || m.ResourceType == "" || (m.ResourceIDArg == "" && len(m.ResourceIDArgs) == 0) {
+			return nil, fmt.Errorf("config: tool %q needs action, resource_type, and resource_id_arg or resource_id_args", name)
+		}
+		if err := m.checkResourceArgs(); err != nil {
+			return nil, fmt.Errorf("config: tool %q %w", name, err)
 		}
 	}
 	return &cfg, nil
+}
+
+// checkResourceArgs refuses a mapping whose resource id could be read more
+// than one way: named by both forms, a path argument with nothing before
+// it, or an argument name in resource_id_args or resource_id_path_arg that
+// is blank, padded, or listed twice. A resource_id_arg is left as it was
+// before resource_id_args existed, so no working config changes meaning.
+func (m ToolMapping) checkResourceArgs() error {
+	if m.ResourceIDArg != "" && len(m.ResourceIDArgs) > 0 {
+		return errors.New("names its resource in both resource_id_arg and resource_id_args; use one")
+	}
+	if m.ResourcePathArg != "" && len(m.ResourceIDArgs) == 0 {
+		return errors.New("has resource_id_path_arg without resource_id_args; for a single argument, use resource_id_arg")
+	}
+	names := append([]string(nil), m.ResourceIDArgs...)
+	if m.ResourcePathArg != "" {
+		names = append(names, m.ResourcePathArg)
+	}
+	seen := make(map[string]bool, len(names))
+	for _, n := range names {
+		if strings.TrimSpace(n) == "" {
+			return errors.New("has an empty resource argument name")
+		}
+		if strings.TrimSpace(n) != n {
+			return fmt.Errorf("has the resource argument name %q, which starts or ends with space; write it exactly", n)
+		}
+		if seen[n] {
+			return fmt.Errorf("lists the resource argument %q twice", n)
+		}
+		seen[n] = true
+	}
+	return nil
 }
