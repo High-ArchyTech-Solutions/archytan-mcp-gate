@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "archytan-mcp-gate",
   "display_name": "Archytan Lite MCP gate",
-  "version": "2.7.0",
+  "version": "2.8.0",
   "description": "Puts an MCP tool server behind Archytan Lite: every tool call is authorized, its signed receipt verified and a single-use capability spent before the server sees it.",
   "long_description": "The MCP gate launches the tool server named in your mcp-gate.json and becomes the only path between the agent and its tools. For each tool call it asks an Archytan Lite gate service to authorize the action, verifies the signed receipt, redeems the single-use capability, and only then forwards the call. A call the policy doesn't allow comes back to the agent as a tool error, and tools you haven't mapped are hidden and refused. It needs a running Archytan Lite gate service with capabilities on, and a credential for the agent made with its callergen.",
   "author": {

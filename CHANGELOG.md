@@ -5,7 +5,7 @@ published on
 [archytan-lite-community](https://github.com/High-ArchyTech-Solutions/archytan-lite-community/releases).
 This repository holds the same code from 2.6.0 on.
 
-## Unreleased
+## 2.8.0 (2026-10-28)
 
 - A tool's resource can be named by several arguments: `resource_id_args`
   joins their values with `/`, for servers such as GitHub's that take
