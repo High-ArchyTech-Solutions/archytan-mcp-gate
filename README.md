@@ -1,5 +1,7 @@
 # archytan-mcp-gate
 
+[![M8ven Score](https://m8ven.ai/badge/mcp/high-archytech-solutions-archytan-mcp-gate-ouo48k?v=5021781bfd36f7ef05d74d80d1190a89)](https://m8ven.ai/mcp/high-archytech-solutions-archytan-mcp-gate-ouo48k?s=readme)
+
 `archytan-mcp-gate` sits between an MCP host (Claude Code, Claude Desktop,
 an IDE agent, your own agent) and an MCP tool server. Before any tool call
 reaches the server, an [Archytan Lite](https://high-archy.tech/lite) gate
