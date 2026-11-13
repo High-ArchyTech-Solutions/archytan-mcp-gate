@@ -5,6 +5,17 @@ published on
 [archytan-lite-community](https://github.com/High-ArchyTech-Solutions/archytan-lite-community/releases).
 This repository holds the same code from 2.6.0 on.
 
+## 2.8.1 (2026-11-12)
+
+- Built with Go 1.26.11, which fixes CVE-2026-97054: an HTTP/1 server that
+  caps a request's size with `MaxBytesReader` could crash if its handler
+  read the request body while the response header was being written. The
+  MCP gate runs no HTTP server, so it wasn't exposed, but scanners mark
+  every build on an earlier Go, and this one clears them. Go 1.26.11 also
+  fixes eleven issues in how the toolchain builds a hostile package that
+  uses cgo (CVE-2026-97033 to CVE-2026-97043); the MCP gate uses no cgo.
+  Nothing else changes.
+
 ## 2.8.0 (2026-10-28)
 
 - A tool's resource can be named by several arguments: `resource_id_args`
