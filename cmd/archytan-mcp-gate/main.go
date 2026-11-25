@@ -21,6 +21,10 @@
 //	ARCHYTAN_MCP_GATE_CALLER_TOKEN_PATH   file holding this agent's caller token (from callergen)
 //	ARCHYTAN_MCP_GATE_PUBLIC_KEY_HEX      the gate's receipt-signing public key
 //
+// Optional:
+//
+//	ARCHYTAN_MCP_GATE_HOLD_WAIT_SECONDS   how long to wait for a person to answer a held action (default 0: refuse at once)
+//
 // stdout carries the MCP protocol only; everything the gate says goes to
 // stderr.
 package main
@@ -172,10 +176,15 @@ func gateClientFromEnv() (*mcpgate.GateClient, error) {
 	if err != nil || len(pub) != ed25519.PublicKeySize {
 		return nil, errors.New("ARCHYTAN_MCP_GATE_PUBLIC_KEY_HEX must be the gate's 32-byte Ed25519 public key in hex")
 	}
+	holdWait, err := mcpgate.ParseHoldWait(os.Getenv(mcpgate.HoldWaitEnv))
+	if err != nil {
+		return nil, err
+	}
 	return &mcpgate.GateClient{
 		BaseURL:   url,
 		Token:     token,
 		PublicKey: ed25519.PublicKey(pub),
 		HTTP:      &http.Client{Timeout: mcpgate.RequestTimeout},
+		HoldWait:  holdWait,
 	}, nil
 }

@@ -118,6 +118,7 @@ and a project's `.mcp.json`:
 | `ARCHYTAN_MCP_GATE_URL` | Base URL of the Archytan Lite gate service. Plain `http` is accepted only to loopback, because every request carries the agent's credential. |
 | `ARCHYTAN_MCP_GATE_CALLER_TOKEN_PATH` | File holding the agent's caller token. |
 | `ARCHYTAN_MCP_GATE_PUBLIC_KEY_HEX` | The service's Ed25519 receipt-signing public key, in hex. Receipts signed by any other key are refused. |
+| `ARCHYTAN_MCP_GATE_HOLD_WAIT_SECONDS` | Optional. How long to wait for a person to answer an action the policy holds for approval, in whole seconds up to 3600. Default 0: don't wait, refuse at once. See [Actions held for a person's approval](#actions-held-for-a-persons-approval). |
 
 The tool server can be named in `mcp-gate.json` instead of after `--`,
 which suits a host or bundle that only lets you pass a config file:
@@ -200,6 +201,54 @@ request number, so give it an action of its own.
 
 An MCP gate older than 2.8.0 refuses to start with a config that uses
 `resource_id_args`, rather than ignore it.
+
+### Actions held for a person's approval
+
+An Archytan Lite 2.9.0 policy can hold an action until a person approves it
+(a `hold` block on the action, with the approver roles and a ttl). The
+service answers such a request with a HOLD instead of an ALLOW, and a HOLD
+is never an allow: nothing is forwarded, and no capability exists, until a
+person with an approver role approves it. The MCP gate handles it like
+this:
+
+1. A `202` counts as a hold only if its receipt verifies with the key the
+   MCP gate sent, says HOLD, describes this call, and the hold's id is the
+   receipt's id. Anything else is a plain refusal.
+2. If waiting is on, it reads `GET /v1/holds/{id}` every two seconds until
+   the hold is answered, the hold's expiry (plus two seconds of grace for
+   clock skew) passes, the wait limit runs out, or the host cancels the
+   call. Reading a hold mints nothing.
+3. Once approved, it repeats the authorize request once, with the same
+   idempotency key, and accepts the answer only if it checks out: the HOLD
+   receipt it carries verifies under the call's own key and describes this
+   call, the resolution receipt verifies under `hold:` plus the HOLD
+   receipt's id (which is what ties an approval to that hold), both name the
+   same action and resource, and a capability came with it. The approver's
+   name is on the resolution receipt, not on the call, so the usual
+   comparison with the request is made on the HOLD receipt. Then it redeems
+   the capability and forwards the call, as for any other ALLOW.
+4. A hold that is denied, expires, or is refused because the policy no
+   longer allows the action ends the call with a tool error that names the
+   hold and says what happened, so the agent, and whoever reads the
+   transcript, know a person was asked. So does an approval that can no
+   longer be collected.
+
+`ARCHYTAN_MCP_GATE_HOLD_WAIT_SECONDS` sets the longest the MCP gate waits
+for the answer, in whole seconds up to 3600. **The default is 0: it doesn't
+wait.** A held action is refused at once with a message that says it is held
+as hold `<id>` and that this gate is set not to wait. The reason is that
+MCP hosts commonly give up on a tool call after about a minute, and a call
+that waits longer than its host does gets abandoned: the person may then
+approve something nobody is waiting for. Pick a value below your host's
+tool-call timeout, say 45, if you want the agent to wait for a person who is
+at their desk, and leave it at 0 where approvals take longer. The MCP gate
+sends no progress notifications while it waits, so a host that doesn't
+extend its timeout on progress will not wait longer than its own limit
+whatever you set here. While a call waits, the calls behind it wait too,
+since calls run in the order the agent issued them.
+
+Each attempt uses a fresh idempotency key, so asking again after a refusal
+opens a new hold; an approval is used only by the call that opened its hold.
 
 ## What it does on the wire
 

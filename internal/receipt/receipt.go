@@ -21,7 +21,7 @@ import (
 const (
 	DecisionAllow    = "ALLOW"
 	DecisionBlock    = "BLOCK"
-	DecisionHold     = "HOLD"     // vocabulary reserved, not wired in v1
+	DecisionHold     = "HOLD"     // an action held for a person's approval (Archytan Lite 2.9.0); never an allow
 	DecisionEscalate = "ESCALATE" // vocabulary reserved, not wired in v1
 )
 

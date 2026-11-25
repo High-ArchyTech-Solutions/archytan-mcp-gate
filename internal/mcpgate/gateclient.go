@@ -16,6 +16,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -46,6 +47,14 @@ type GateClient struct {
 	Token     string
 	PublicKey ed25519.PublicKey
 	HTTP      *http.Client
+	// HoldWait is the longest Authorize waits for a person to answer an
+	// action Archytan Lite holds for approval. Zero, the default, doesn't
+	// wait: a held action is refused at once, naming the hold.
+	HoldWait time.Duration
+
+	// holdPoll is how often a hold is read while waiting; zero means
+	// defaultHoldPoll. Tests shorten it.
+	holdPoll time.Duration
 }
 
 // RequestTimeout bounds each call to the gate. A slow gate is a denying
@@ -98,18 +107,31 @@ func traceparentFrom(ctx context.Context) string {
 }
 
 func (c *GateClient) post(ctx context.Context, path string, body any, out any) (int, error) {
-	payload, err := json.Marshal(body)
-	if err != nil {
-		return 0, err
+	return c.do(ctx, http.MethodPost, path, body, out, http.StatusOK)
+}
+
+// do makes one request to the gate and decodes the response body into out
+// only when its status is one of decodeOn; any other status returns with
+// out untouched, for the caller to refuse.
+func (c *GateClient) do(ctx context.Context, method, path string, body any, out any, decodeOn ...int) (int, error) {
+	var payload io.Reader
+	if body != nil {
+		b, err := json.Marshal(body)
+		if err != nil {
+			return 0, err
+		}
+		payload = bytes.NewReader(b)
 	}
 	ctx, cancel := context.WithTimeout(ctx, RequestTimeout)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(c.BaseURL, "/")+path, bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, method, strings.TrimRight(c.BaseURL, "/")+path, payload)
 	if err != nil {
 		return 0, err
 	}
 	req.Header.Set("Authorization", "Bearer "+c.Token)
-	req.Header.Set("Content-Type", "application/json")
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	// The agent's trace, when its tools/call carried one: the gate logs it
 	// beside the decision and signs its trace id into a v2 receipt.
 	if tp := traceparentFrom(ctx); tp != "" {
@@ -128,7 +150,7 @@ func (c *GateClient) post(ctx context.Context, path string, body any, out any) (
 	if err != nil {
 		return resp.StatusCode, fmt.Errorf("read gate response: %w", err)
 	}
-	if resp.StatusCode == http.StatusOK {
+	if slices.Contains(decodeOn, resp.StatusCode) {
 		if err := json.Unmarshal(raw, out); err != nil {
 			return resp.StatusCode, fmt.Errorf("malformed gate response: %w", err)
 		}
@@ -144,37 +166,76 @@ func newIdempotencyKey() (string, error) {
 	return "mcp-" + hex.EncodeToString(b), nil
 }
 
+// authorizeRequest is what the relay asks the gate to decide, and what every
+// receipt the gate returns for it must describe.
+type authorizeRequest struct {
+	action, actorUID, resourceType, resourceID string
+}
+
+// describes reports whether r is a receipt for exactly this request.
+func (q authorizeRequest) describes(r receipt.Receipt) bool {
+	return r.Action == q.action && r.ResourceType == q.resourceType && r.ResourceID == q.resourceID && r.ActorUID == q.actorUID
+}
+
+// body is the authorize request as sent. Replaying a held request sends the
+// same body, with the same idempotency key, so the gate answers from the
+// hold it already opened.
+func (q authorizeRequest) body(idem string) map[string]any {
+	return map[string]any{
+		"action":          q.action,
+		"actor":           map[string]string{"uid": q.actorUID},
+		"resource":        map[string]string{"type": q.resourceType, "id": q.resourceID},
+		"idempotency_key": idem,
+	}
+}
+
+// authorizeResponse is the gate's answer to /v1/authorize: an ALLOW with a
+// capability (200), a HOLD with the hold that was opened (202), or an ALLOW
+// that resolves a hold, which also carries the HOLD receipt (200).
+type authorizeResponse struct {
+	Decision   string          `json:"decision"`
+	Receipt    receipt.Receipt `json:"receipt"`
+	Capability *struct {
+		Token string `json:"token"`
+	} `json:"capability"`
+	Hold *struct {
+		HoldID    string `json:"hold_id"`
+		ExpiresAt string `json:"expires_at"`
+	} `json:"hold"`
+	HoldReceipt *receipt.Receipt `json:"hold_receipt"`
+}
+
 // Authorize asks the gate and accepts only a genuine ALLOW for exactly this
-// request that carries a capability.
+// request that carries a capability. An action the gate holds for a person's
+// approval is an allow only once a person approved it and the gate's
+// resolution verifies; see authorizeHeld.
 func (c *GateClient) Authorize(ctx context.Context, action, actorUID, resourceType, resourceID string) (Grant, error) {
 	idem, err := newIdempotencyKey()
 	if err != nil {
 		return Grant{}, err
 	}
-	var resp struct {
-		Decision   string          `json:"decision"`
-		Receipt    receipt.Receipt `json:"receipt"`
-		Capability *struct {
-			Token string `json:"token"`
-		} `json:"capability"`
-	}
-	status, err := c.post(ctx, "/v1/authorize", map[string]any{
-		"action":          action,
-		"actor":           map[string]string{"uid": actorUID},
-		"resource":        map[string]string{"type": resourceType, "id": resourceID},
-		"idempotency_key": idem,
-	}, &resp)
+	q := authorizeRequest{action: action, actorUID: actorUID, resourceType: resourceType, resourceID: resourceID}
+	var resp authorizeResponse
+	status, err := c.do(ctx, http.MethodPost, "/v1/authorize", q.body(idem), &resp, http.StatusOK, http.StatusAccepted)
 	if err != nil {
 		return Grant{}, err
 	}
+	if status == http.StatusAccepted {
+		return c.authorizeHeld(ctx, q, idem, resp)
+	}
 	if status != http.StatusOK || resp.Decision != receipt.DecisionAllow {
 		return Grant{}, errors.New("the gate did not allow this action")
+	}
+	// The body's decision is not signed; the receipt's is. A genuine receipt
+	// for a HOLD or a BLOCK, relabelled ALLOW in the body, verifies, so say it too.
+	if resp.Receipt.Decision != receipt.DecisionAllow {
+		return Grant{}, errors.New("the gate's receipt does not say ALLOW")
 	}
 	if err := receipt.VerifyFor(resp.Receipt, c.PublicKey, idem); err != nil {
 		return Grant{}, fmt.Errorf("the gate's receipt failed verification: %w", err)
 	}
 	r := resp.Receipt
-	if r.Action != action || r.ResourceType != resourceType || r.ResourceID != resourceID || r.ActorUID != actorUID {
+	if !q.describes(r) {
 		return Grant{}, errors.New("the gate's receipt does not describe this request")
 	}
 	if resp.Capability == nil || resp.Capability.Token == "" {

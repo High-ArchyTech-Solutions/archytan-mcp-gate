@@ -41,6 +41,7 @@ type env struct {
 	pubHex             string
 	tokenPath          string
 	callLog            string
+	approverToken      string
 }
 
 // The two binaries are built once for the whole package.
@@ -116,6 +117,13 @@ func setup(t *testing.T) *env {
 // role, and writes policy and the MCP gate's config for the session.
 func setupWith(t *testing.T, role, policy, gateConfig string) *env {
 	t.Helper()
+	return setupWithApprover(t, role, "", policy, gateConfig)
+}
+
+// setupWithApprover is setupWith with a second caller, "maria", holding
+// approverRole when that isn't empty; her token is e.approverToken.
+func setupWithApprover(t *testing.T, role, approverRole, policy, gateConfig string) *env {
+	t.Helper()
 	if skipReason != "" {
 		// CI sets this, so the tests can't pass by not running.
 		if os.Getenv("ARCHYTAN_MCP_GATE_E2E_REQUIRED") == "1" {
@@ -132,8 +140,15 @@ func setupWith(t *testing.T, role, policy, gateConfig string) *env {
 	e.tokenPath = filepath.Join(e.dir, "agent.token")
 	write(t, e.tokenPath, token+"\n")
 	digest := sha256.Sum256([]byte(token))
-	write(t, filepath.Join(e.dir, "callers.json"), fmt.Sprintf(
-		`{"version":1,"callers":[{"caller_id":"agent-invoices","role":%q,"token_sha256":%q}]}`, role, hex.EncodeToString(digest[:])))
+	callers := fmt.Sprintf(`{"caller_id":"agent-invoices","role":%q,"token_sha256":%q}`, role, hex.EncodeToString(digest[:]))
+	if approverRole != "" {
+		approver := make([]byte, 32)
+		_, _ = rand.Read(approver)
+		e.approverToken = hex.EncodeToString(approver)
+		ad := sha256.Sum256([]byte(e.approverToken))
+		callers += fmt.Sprintf(`,{"caller_id":"maria","role":%q,"token_sha256":%q}`, approverRole, hex.EncodeToString(ad[:]))
+	}
+	write(t, filepath.Join(e.dir, "callers.json"), `{"version":1,"callers":[`+callers+`]}`)
 	write(t, filepath.Join(e.dir, "policy.json"), policy)
 	write(t, filepath.Join(e.dir, "mcp-gate.json"), gateConfig)
 	e.callLog = filepath.Join(e.dir, "calls.log")

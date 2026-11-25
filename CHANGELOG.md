@@ -5,6 +5,38 @@ published on
 [archytan-lite-community](https://github.com/High-ArchyTech-Solutions/archytan-lite-community/releases).
 This repository holds the same code from 2.6.0 on.
 
+## 2.9.0 (2026-11-24)
+
+- Supports the human hold in Archytan Lite 2.9.0, where a policy holds an
+  action until a person with an approver role approves it. Before, the
+  service's `202 HOLD` was refused as "the gate did not allow this action",
+  and since every attempt used a fresh key, asking again only opened
+  another hold, so an approval could never be used. Now a `202` counts as a
+  hold only if its receipt verifies with the call's own key, says HOLD,
+  describes the call, and its hold id is the receipt's id. If waiting is
+  on, the MCP gate reads the hold every two seconds until it is answered,
+  expires, the wait limit passes, or the host cancels, then repeats the
+  authorize request once with the same key. It accepts that answer only if
+  the HOLD receipt it carries verifies and describes the call, the
+  resolution receipt verifies under `hold:` plus the HOLD receipt's id and
+  names the same action and resource, and a capability came with it. A hold
+  that is denied, expires, is refused, or can no longer be collected ends
+  the call with a message that names the hold and says a person was asked.
+- New `ARCHYTAN_MCP_GATE_HOLD_WAIT_SECONDS`, the longest to wait, in whole
+  seconds up to 3600. It defaults to 0, which doesn't wait: a held action is
+  refused at once, naming the hold. Hosts commonly stop waiting for a tool
+  call after about a minute, so a longer default would leave approvals for
+  calls nobody is waiting on. The MCP gate sends no progress notifications
+  while it waits. The bundle's settings don't include the option yet, so a
+  bundle install doesn't wait.
+- Hardening: an ordinary ALLOW is now accepted only if its signed receipt
+  also says ALLOW. The decision in the response body isn't signed, so a
+  genuine HOLD or BLOCK receipt relabelled ALLOW in the body used to pass
+  verification. Redeeming the capability would still have refused it.
+- The receipt code accepts a HOLD decision, so a HOLD receipt verifies.
+- Holds need an Archytan Lite 2.9.0 service. Against an earlier one nothing
+  changes, since it never answers `202`.
+
 ## 2.8.1 (2026-11-12)
 
 - Built with Go 1.26.11, which fixes CVE-2026-97054: an HTTP/1 server that

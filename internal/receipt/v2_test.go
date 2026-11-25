@@ -133,3 +133,27 @@ func TestMintV2_RefusesIncompleteFields(t *testing.T) {
 		t.Fatalf("an observe override with no callers file, trace or tenant was refused: %v", err)
 	}
 }
+
+// A HOLD receipt is a signed decision like any other: it mints, verifies
+// under the key its request sent, and does not verify as an ALLOW.
+func TestMintV2_HoldDecision(t *testing.T) {
+	priv := testKey(t)
+	pub := priv.Public().(ed25519.PublicKey)
+	f := v2Fields("idem")
+	f.Decision = DecisionHold
+	r, err := MintV2(priv, f)
+	if err != nil {
+		t.Fatalf("a HOLD receipt was refused: %v", err)
+	}
+	if err := VerifyFor(r, pub, "idem"); err != nil {
+		t.Fatalf("a HOLD receipt did not verify: %v", err)
+	}
+	r.Decision = DecisionAllow
+	if err := VerifyFor(r, pub, "idem"); !errors.Is(err, ErrReceiptIntentMismatch) {
+		t.Fatalf("a HOLD receipt relabelled ALLOW verified: %v", err)
+	}
+	f.Mode, f.ObserveOverride = ModeObserve, true
+	if _, err := MintV2(priv, f); err == nil {
+		t.Fatal("an observe override was minted on a HOLD")
+	}
+}

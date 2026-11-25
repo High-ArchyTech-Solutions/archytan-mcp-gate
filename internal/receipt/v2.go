@@ -123,7 +123,7 @@ func isLowerHex(s string, n int) bool {
 
 func (f V2Fields) validate() error {
 	switch {
-	case f.Decision != DecisionAllow && f.Decision != DecisionBlock:
+	case f.Decision != DecisionAllow && f.Decision != DecisionBlock && f.Decision != DecisionHold:
 		return fmt.Errorf("%w: decision %q", errV2Field, f.Decision)
 	case f.Mode != ModeEnforce && f.Mode != ModeObserve:
 		return fmt.Errorf("%w: mode %q", errV2Field, f.Mode)
